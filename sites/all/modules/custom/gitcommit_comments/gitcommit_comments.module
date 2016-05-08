@@ -28,13 +28,15 @@ function gitcommit_comments_preprocess_node(&$vars) {
     foreach ($commits as $commit) {
       $weight = 0;
 
-      foreach (element_children($vars['content']['comments']['comments']) as $key) {
-        if (is_numeric($key)) {
-          $build = $vars['content']['comments']['comments'][$key];
+      if (!empty($vars['content']['comments'])) {
+        foreach (element_children($vars['content']['comments']['comments']) as $key) {
+          if (is_numeric($key)) {
+            $build = $vars['content']['comments']['comments'][$key];
 
-          if ($build['#comment']->created > $commit->time) {
-            $weight = $build['#weight'];
-            break;
+            if ($build['#comment']->created > $commit->time) {
+              $weight = $build['#weight'];
+              break;
+            }
           }
         }
       }
@@ -94,5 +96,19 @@ function gitcommit_comments_preprocess_comment(&$vars) {
     $vars['title'] = t('New commit: !hash', array('!hash' => l($commit->hash, $commit->url, $options)));
     $vars['content']['links']['#access'] = FALSE;
     $vars['permalink'] = l(t('Permalink'), $commit->url, $options);
+
+    $comment = $vars['comment'];
+    $account = user_load($comment->uid);
+
+    $build = array(
+      '#theme' => 'username',
+      '#account' => $account,
+    );
+
+    $vars['author'] = render($build);
+    $vars['submitted'] = t('Submitted by !username on !datetime', array(
+      '!username' => $vars['author'],
+      '!datetime' => $vars['created'],
+    ));
   }
 }
