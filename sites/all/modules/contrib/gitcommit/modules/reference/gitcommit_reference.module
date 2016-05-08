@@ -1,0 +1,159 @@
+<?php
+
+/**
+ * @file
+ * Module file for Git Commit Reference.
+ */
+
+/**
+ * Implements hook_entity_presave().
+ */
+function gitcommit_reference_entity_presave($entity, $type) {
+  if (
+    $type == 'gitcommit' &&
+    ($target_type = variable_get('gitcommit_reference_entity_type_target', '')) &&
+    ($regex = variable_get('gitcommit_reference_regex', ''))
+  ) {
+    preg_match_all('/' . $regex . '/', $entity->message, $matches);
+
+    if (!empty($matches[0])) {
+      $ids = array();
+      foreach ($matches[0] as $match) {
+        $ids[] = (int) substr($match, 1);
+      }
+
+      if ($entities = entity_load($target_type, $ids)) {
+        // Sets entity reference field.
+        $wrapper = entity_metadata_wrapper('gitcommit', $entity);
+        $wrapper->gitcommit_reference->set(array_keys($entities));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function gitcommit_reference_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'gitcommit_settings_form') {
+    $form['reference'] = array(
+      '#title' => t('Reference'),
+      '#type' => 'fieldset',
+    );
+
+    $form['#old_target'] = variable_get('gitcommit_reference_entity_type_target', '_none_');
+    $form['reference']['gitcommit_reference_entity_type_target'] = array(
+      '#title' => t('Target entity type'),
+      '#type' => 'select',
+      '#options' => array('_none_' => t('- None -')),
+      '#default_value' => $form['#old_target'],
+    );
+
+    $entity_types = entity_get_info();
+    foreach ($entity_types as $entity_type => $info) {
+      $form['reference']['gitcommit_reference_entity_type_target']['#options'][$entity_type] = $info['label'];
+    }
+
+    $form['reference']['gitcommit_reference_regex'] = array(
+      '#title' => t('Regex to extract entity ID'),
+      '#type' => 'textfield',
+      '#description' => t('<p>!regex used to extract ids of Drupal entities from the commit message. Example: <em>#\d+</em> will catch all integer numbers right after a # character. Leave blank to do not extract anything.', array(
+        '!regex' => l(t('Regular expression'), 'http://en.wikipedia.org/wiki/Regular_expression'),
+      )),
+      '#default_value' => variable_get('gitcommit_reference_regex', '#\d+'),
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="gitcommit_reference_entity_type_target"]' => array('value' => '_none_'),
+        ),
+      ),
+    );
+
+    $form['#validate'][] = 'gitcommit_reference_config_form_validate';
+    $form['#submit'][] = 'gitcommit_reference_config_form_submit';
+  }
+}
+
+/**
+ * Validate handler.
+ */
+function gitcommit_reference_config_form_validate($form, &$form_state) {
+  $old_target = $form['#old_target'];
+  $new_target = $form_state['values']['gitcommit_reference_entity_type_target'];
+
+  if ($new_target != $old_target && db_table_exists('field_data_gitcommit_reference')) {
+    $query = db_select('gitcommit', 'g')->fields('g');
+    $query->join('field_data_gitcommit_reference', 'f', 'f.entity_id = g.cid');
+
+    if ($query->execute()->rowCount()) {
+      $msg = t('There are commits that reference entity type <em>@type</em> in your database. Please, clear your commit history !here.', array(
+        '@type' => $form['reference']['gitcommit_reference_entity_type_target']['#options'][$form['#old_target']],
+        '!here' => l(t('here'), 'admin/config/gitcommit/clear-history'),
+      ));
+      form_set_error('gitcommit_reference_entity_type_target', $msg);
+    }
+  }
+}
+
+/**
+ * Submit handler.
+ */
+function gitcommit_reference_config_form_submit($form, &$form_state) {
+  $old_target = $form['#old_target'];
+  $new_target = $form_state['values']['gitcommit_reference_entity_type_target'];
+
+  if ($new_target != $old_target) {
+    // Remove entity reference field.
+    if (field_info_field('gitcommit_reference')) {
+      field_delete_field('gitcommit_reference');
+      field_purge_batch(100);
+    }
+
+    if ($new_target != '_none_') {
+      // Create new entity reference field.
+      $field = array(
+        'field_name' => 'gitcommit_reference',
+        'type' => 'entityreference',
+        'settings' => array(
+          'target_type' => $new_target,
+          'handler_settings' => array('target_bundles' => NULL),
+        ),
+        'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+        'translatable' => FALSE,
+      );
+      field_create_field($field);
+
+      $instance = array(
+        'label' => 'Git Commit Reference',
+        'field_name' => 'gitcommit_reference',
+        'entity_type' => 'gitcommit',
+        'bundle' => 'gitcommit',
+      );
+      field_create_instance($instance);
+    }
+  }
+}
+
+/**
+ * Get all commits that reference the given target entity.
+ *
+ * @param integer $target_id
+ *   The ID of the target entity.
+ *
+ * @return
+ *   An array containing the referencing git commit objects.
+ *   FALSE if no results.
+ */
+function gitcommit_reference_get_referencing_commits($target_id) {
+  $query = new EntityFieldQuery();
+  $results = $query->entityCondition('entity_type', 'gitcommit')
+    ->fieldCondition('gitcommit_reference', 'target_id', $target_id)
+    ->propertyOrderBy('time')
+    ->propertyOrderBy('cid')
+    ->execute();
+
+  if (!empty($results['gitcommit'])) {
+    return gitcommit_load_multiple(array_keys($results['gitcommit']));
+  }
+
+  return FALSE;
+}

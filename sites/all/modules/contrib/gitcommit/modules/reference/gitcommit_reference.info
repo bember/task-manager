@@ -1,0 +1,16 @@
+name = Git Commit Reference
+description = Relates commits with internal entities.
+core = 7.x
+package = Git Commit Webhook
+
+dependencies[] = gitcommit
+dependencies[] = entityreference
+
+configure = admin/config/git-commit/settings
+
+; Information added by Drupal.org packaging script on 2016-05-04
+version = "7.x-1.0+9-dev"
+core = "7.x"
+project = "gitcommit"
+datestamp = "1462330742"
+

@@ -1,0 +1,84 @@
+<?php
+
+/**
+ * @file
+ * Module file for Git Commit Webhook.
+ */
+
+include_once 'includes/entity/gitcommit.entity.inc';
+
+/**
+ * Implements hook_menu().
+ */
+function gitcommit_menu() {
+  $items = array();
+
+  $items['admin/config/gitcommit'] = array(
+    'title' => 'Git Commit Webhook',
+    'description' => 'Administer Git Commit.',
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('administer git commit'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+
+  $items['admin/config/gitcommit/settings'] = array(
+    'title' => 'Git Commit Webhook settings',
+    'description' => 'General settings for Git Commit Webhook module.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gitcommit_settings_form'),
+    'access arguments' => array('administer git commit'),
+    'file' => 'includes/gitcommit.admin.inc',
+  );
+
+  $items['admin/config/gitcommit/clear-history'] = array(
+    'title' => 'Clear commit history',
+    'description' => 'Clear commits from database (all or before a specific date).',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gitcommit_clear_history_form'),
+    'access arguments' => array('administer git commit'),
+    'file' => 'includes/gitcommit.admin.inc',
+  );
+
+  $items['gitcommit-webhook'] = array(
+    'title' => 'Git Commit Webhook Listener',
+    'type' => MENU_CALLBACK,
+    'page callback' => 'gitcommit_webhook_listener',
+    'delivery callback' => 'drupal_json_output',
+    'access callback' => 'variable_get',
+    'access arguments' => array('gitcommit_webhook_enabled', FALSE),
+    'file' => 'includes/gitcommit.webhook.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function gitcommit_permission() {
+  return array(
+    'administer gitcommit' => array(
+      'title' => t('Administer Git Commit Webhook'),
+      'description' => t('Access to Git Commit Webhook settings.'),
+    ),
+  );
+}
+
+/**
+ * Checks whether the given git commit exists.
+ *
+ * @param string $hash
+ *   The commit hash.
+ *
+ * @return boolean
+ *   TRUE if commit exists, FALSE otherwise.
+ */
+function gitcommit_commit_exists($hash) {
+  $query = new EntityFieldQuery();
+  $results = $query->entityCondition('entity_type', 'gitcommit')
+    ->propertyCondition('hash', $hash)
+    ->execute();
+
+  return !empty($results['gitcommit']);
+}

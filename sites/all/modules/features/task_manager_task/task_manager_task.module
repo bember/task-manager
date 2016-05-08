@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Task Manager Task feature.
+ */
+
+include_once 'task_manager_task.features.inc';

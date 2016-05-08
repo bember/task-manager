@@ -1,0 +1,98 @@
+<?php
+/**
+ * @file
+ * gitcommit_comments.module file.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function gitcommit_comments_theme($existing, $type, $theme, $path) {
+  return array(
+    'gitcommit_comment' => array(
+      'template' => 'templates/gitcommit-comment',
+      'variables' => array(
+        'author_name' => '',
+        'author_mail' => '',
+        'message' => '',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_preprocess_node().
+ */
+function gitcommit_comments_preprocess_node(&$vars) {
+  if ($commits = gitcommit_reference_get_referencing_commits($vars['node']->nid)) {
+    foreach ($commits as $commit) {
+      $weight = 0;
+
+      foreach (element_children($vars['content']['comments']['comments']) as $key) {
+        if (is_numeric($key)) {
+          $build = $vars['content']['comments']['comments'][$key];
+
+          if ($build['#comment']->created > $commit->time) {
+            $weight = $build['#weight'];
+            break;
+          }
+        }
+      }
+
+      $values = array(
+        'nid' => $vars['node']->nid,
+        'pid' => 0,
+        'created' => $commit->time,
+        'changed' => $commit->time,
+        'node_type' => 'comment_node_task',
+        'uid' => variable_get('gitcommit_comments_user', 1),
+        'status' => COMMENT_PUBLISHED,
+        'subject' => '',
+        'language' => LANGUAGE_NONE,
+      );
+
+      $new_comment = entity_create('comment', $values);
+      $new_comment->gitcommit = $commit;
+
+      $build = array(
+        '#theme' => 'gitcommit_comment',
+        '#message' => check_plain($commit->message),
+        '#author_name' => check_plain($commit->author_name),
+        '#author_mail'=> check_plain($commit->author_mail),
+      );
+
+      $wrapper = entity_metadata_wrapper('comment', $new_comment);
+      $wrapper->comment_body->set(array(
+        'value' => render($build),
+        'format' => 'full_html',
+      ));
+
+      $build = entity_view('comment', array($new_comment));
+      $build['comment'][0]['#weight'] = $weight - 0.001;
+
+      $vars['content']['comments']['comments'][] = $build['comment'][0];
+      $vars['comment']++;
+    }
+
+    $vars['content']['comments']['comments']['#sorted'] = FALSE;
+  }
+}
+
+/**
+ * Implements hook_preprocess_comment().
+ */
+function gitcommit_comments_preprocess_comment(&$vars) {
+  if (!empty($vars['comment']->gitcommit)) {
+    $commit = $vars['comment']->gitcommit;
+
+    $options = array(
+      'attributes' => array(
+        'class' => array('permalink'),
+      ),
+    );
+
+    $vars['title'] = t('New commit: !hash', array('!hash' => l($commit->hash, $commit->url, $options)));
+    $vars['content']['links']['#access'] = FALSE;
+    $vars['permalink'] = l(t('Permalink'), $commit->url, $options);
+  }
+}

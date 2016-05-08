@@ -1,0 +1,132 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Git Commit Webhook module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function gitcommit_schema() {
+  $schema = array();
+
+  $schema['gitcommit'] = array(
+    'fields' => array(
+      'cid' => array(
+        'description' => 'Commit internal ID.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'hash' => array(
+        'description' => 'Commit hash ID.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'message' => array(
+        'description' => 'Commit message.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'time' => array(
+        'description' => 'Timestamp when the commit happened.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'url' => array(
+        'description' => 'Changeset URL.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'author_mail' => array(
+        'description' => 'Author e-mail.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'author_name' => array(
+        'description' => 'Author full name.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'repository_name' => array(
+        'description' => 'Repository name.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'repository_url' => array(
+        'description' => 'Repository URL.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('cid'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ */
+function gitcommit_install() {
+	$fields = array(
+		'gitcommit_files_added' => 'Added files',
+		'gitcommit_files_modified' => 'Modified files',
+		'gitcommit_files_removed' => 'Removed files',
+	);
+
+	foreach ($fields as $field_name => $field_label) {
+		$field = array(
+			'field_name' => $field_name,
+			'type' => 'text',
+			'settings' => array('max_lenght' => 256),
+			'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+			'locked' => 1,
+			'translatable' => FALSE,
+		);
+		field_create_field($field);
+
+		$instance = array(
+      'label' => $field_label,
+      'field_name' => $field_name,
+      'entity_type' => 'gitcommit',
+      'bundle' => 'gitcommit',
+		);
+    field_create_instance($instance);
+	}
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function gitcommit_uninstall() {
+  variable_del('gitcommit_webhook_security_token');
+  variable_del('gitcommit_webhook_enabled');
+  variable_del('gitcommit_webhook_repo');
+
+  $fields = array(
+    'gitcommit_files_added',
+    'gitcommit_files_modified',
+    'gitcommit_files_removed',
+  );
+
+  foreach ($fields as $field) {
+    field_delete_field($field);
+  }
+
+  field_purge_batch(100);
+}

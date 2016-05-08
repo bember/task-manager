@@ -1,0 +1,7 @@
+name = Git Commit Comments
+description = Creates a comment when a new commit arrives from webhook.
+core = 7.x
+package = Git Commit
+version = 7.x-1.0
+project = gitcommit_comments
+dependencies[] = gitcommit_reference

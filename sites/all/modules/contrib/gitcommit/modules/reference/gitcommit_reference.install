@@ -1,0 +1,19 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Git Commit Reference module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function gitcommit_reference_uninstall() {
+  variable_del('gitcommit_reference_regex');
+  variable_del('gitcommit_reference_entity_type_target');
+
+  if (field_info_field('gitcommit_reference')) {
+    field_delete_field('gitcommit_reference');
+    field_purge_batch(100);
+  }
+}
